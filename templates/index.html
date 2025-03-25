@@ -1,8 +1,91 @@
 <html>
     <head>
         <title>VidGen</title>
+        <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0>
+        <style>
+    		.div{
+    			margin: 25px 50px 75px 100px auto;
+    		}
+    	
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                color: #2D336B;
+                background-color:#FFF2F2;
+            }
+            .input-section{
+            	color: #B82132;
+                margin: 0 auto;
+                border-style: dotted;
+     			border-color: #7886C7;
+                padding: 20px;
+            }
+            .result-section {
+                margin: 20px 0;
+                border-style: dotted;
+                padding:5px;
+    		   color: #B82132;
+    		}
+    		textarea {
+            	height: 100px;
+    		   width: 84%;
+    		   padding: 12px 18px;
+                border: solid;
+    		   border-color: #ccc;
+     		color:#D2665A;
+    		   background-color: #f8f8f8;
+    		   font-size: 14px;
+    		   resize: none;
+            }
+            button{
+                background-color: #D2665A;
+                border:none;
+                color: white;
+                text-align: center;
+                margin-left: 70%;
+                margin-top: 10px;
+                font-size: 14px;
+                display: inline-block;
+                cursor: pointer;
+                text-decoration: none;
+                padding: 15px 20px;
+                
+            }
+        </style>
+
     </head>
+    
     <body>
-        
+        	<div class="container">
+	        <h1>LLM ➡️Stable Diffusion🎨➡️ SVD📹</h1>
+            <!-- User input-->
+            	<div class="input-section">
+            	<h2>1️⃣ What kind of video are we making today?</h2>
+            	<textarea id="prompt"></textarea>
+            	<br>
+            	<button onclick="generateOutline()"> Generate Outline</button>
+            	</div>
+            	
+            <!-- Generated content display-->
+            	<div class="result-section" id="outlineSection">
+            	            <h2>2️⃣Confirm the outline for your video!</h2>
+            	            <div id="outlineResult"></div>
+            	            <button onclick="generateImages()">Generate Image</button>
+            	        </div>
+            	
+            <!-- Generated image display -->
+            	<div class="result-section" id="imageSection">
+            	            <h2>3️⃣Get a load of your image!</h2>
+            	            <div id="imageResult"></div>
+            	            <button onclick="generateVideo()">Generate video</button>
+            	        </div>
+            	
+            <!-- Generated video display -->
+            		<div class="result-section" id="videoSection">
+            	            <h2>4️⃣Review your video!</h2>
+            	            <div id="videoResult"></div>
+            	        </div>
+                </div>
     </body>
 </html>
