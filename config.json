@@ -1,0 +1,37 @@
+{
+  "models": {
+      "sd15": {
+          "name": "Stable Diffusion 1.5",
+          "path": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+          "pipeline": "StableDiffusionPipeline",
+          "supported_loras": ["cyberpunk_lora", "anime_lora"]
+      },
+      "sdxl": {
+          "name": "SDXL",
+          "path": "stabilityai/stable-diffusion-xl-base-1.0",
+          "pipeline": "StableDiffusionXLPipeline"
+      }
+  },
+  "loras":{
+      "cyberpunk_lora": { "path": "LoRA/MoXinV1.safetensors" },
+      "anime_lora": { "path": "LoRA/tarot card 512x1024.safetensors" }
+  },
+  "parameters": {
+      "image": {
+          "width": {"min": 256, "max": 1024, "step": 64, "default": 512},
+          "height": {"min": 256, "max": 1024, "step": 64, "default": 512},
+          "num_inference_steps": {"min": 10, "max": 70, "step": 5, "default": 30},
+          "guidance_scale": {"min": 1.0, "max": 10.0, "step": 0.5, "default": 7.5},
+          "seed": {"min": -1, "max": 2147483647, "step": 1, "default": -1}
+      },
+      "video": {
+          "num_frames": {"min": 1, "max": 24, "step": 1, "default": 24},
+          "fps": {"min": 1, "max": 24, "step": 1, "default": 8},
+          "video_inference_steps": {"min": 10, "max": 70, "step": 5, "default": 30},
+          "motion_bucket": {"min": 1, "max": 255, "step": 1, "default": 127},
+          "vid_guidance_scale": {"min": 1.0, "max": 10.0, "step": 0.5, "default": 7.5},
+          "vid_seed": {"min": -1, "max": 2147483647, "step": 1, "default": -1}
+      }
+      
+  }
+}
