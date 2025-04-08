@@ -1,254 +1,200 @@
 from typing import List, Dict, Optional, Union
 import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 from datetime import datetime
 import os
 import logging
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 import time
-from tqdm import tqdm  # For progress indication
+from tqdm import tqdm  
 import sys
-sys.path.append(r'C:\Users\11151\Downloads\fyp2024\VideoGen')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import gc
+from config_manager import ConfigManager
 
 class ImageGenerator:
-    def __init__(self, device="cpu"):
-        self.device = device
-        self.output_dir = Path("static/generated_image")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Track API calls
-        self.last_api_call = 0
-        self.min_api_interval = 1  # Minimum seconds between API calls
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.torch_dtype = torch.float16 if self.device.type == "cuda" else torch.float32
 
-        self.default_config = {
-            "width": 512,
-            "height": 512,
-            "num_inference_steps": 20, 
-            "guidance_scale": 7.5,
-            "seed": 42
-        }
-        
-        # Available models from Hugging Face
-        self.available_models = {
-            "SD 1.4 base model": "CompVis/stable-diffusion-v1-4",
-            "SD 1.5 base model": "runwayml/stable-diffusion-v1-5",
-            "cyberpunk":"genai-archive/anything-v5",
-            "ancientCN":"xiaolxl/GuoFeng3",
-            "SD 2.1 base model": "stabilityai/stable-diffusion-2-1"
-        }
-        
-        self.available_loras = {
-            "none": None,            
-            "ancientCN": "LoRA\tarot card 512x1024.safetensors",
-            "cyberpunk": "LoRA\MoXinV1.safetensors"
-        }
+        self.config_manager = ConfigManager()
+        self.available_models = self.config_manager.get_model_config()
         
         self.model = None
         self.current_model_key = None
-        
-        logging.info(f"Initializing ImageGenerator with device: {device}")
-        logging.info("ImageGenerator initialized")
 
-        if self.device == "cuda":
-            # Enable memory efficient attention
-            self.default_memory_settings = {
-                "attention_slice_size": 1,
-                "use_tf32": True,
-            }
+    def cleanup_model(self):
+        if self.model is not None:
+            # move model to cpu and free up gpu memory, cut python reference to clean up
+            self.model.to('cpu')
+            del self.model
+            self.model= None
 
-    def _rate_limit_check(self):
-        """Simple rate limiting"""
-        current_time = time.time()
-        if current_time - self.last_api_call < self.min_api_interval:
-            wait_time = self.min_api_interval - (current_time - self.last_api_call)
-            time.sleep(wait_time)
-        self.last_api_call = current_time
+            #tell pytorch to release unused gpu memory and force garbage collection
+            torch.cuda.empty_cache()
+            gc.collect()
 
-    def load_model(self, model_key: str = "base") -> None:
-        """Load model from Hugging Face Hub"""
+    def load_model(self, model_key: str):
         try:
+            # clean up old model then load new model so GPU memory is utilized
+            if self.current_model_key !=model_key:
+                self.cleanup_model()
+
+            model_info = self.available_models.get(model_key)
+            if not model_info:
+                raise ValueError(f"Model {model_key} not available")
+            
             if self.current_model_key == model_key and self.model is not None:
                 return
+
+
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
             
-            model_id = self.available_models.get(model_key)
-            if not model_id:
-                raise ValueError(f"Unknown model: {model_key}")
-            
-            logging.info(f"Loading model: {model_id}")
-            
-            # Show progress during model loading
-            with tqdm(total=100, desc="Loading model") as pbar:
+            if model_info["pipeline"] == "StableDiffusionXLPipeline":
+                from diffusers import StableDiffusionXLPipeline
+                self.model = StableDiffusionXLPipeline.from_pretrained(
+                    model_info["path"],
+                    torch_dtype=self.torch_dtype
+                )
+            else:
+                from diffusers import StableDiffusionPipeline
                 self.model = StableDiffusionPipeline.from_pretrained(
-                    model_id,
-                    torch_dtype=torch.float32,
-                    safety_checker=None,
-                    cache_dir="model_cache"  # Cache models locally
+                    model_info["path"],
+                    torch_dtype=self.torch_dtype
                 )
-                pbar.update(50)
-                
-                self.model.scheduler = DPMSolverMultistepScheduler.from_config(
-                    self.model.scheduler.config
-                )
-                pbar.update(25)
-                
-                if self.device == "cuda":
-                    self.model.enable_attention_slicing(self.default_memory_settings["attention_slice_size"])
-                    torch.backends.cuda.matmul.allow_tf32 = self.default_memory_settings["use_tf32"]
-                
-                self.model.to(self.device)
-                pbar.update(25)
             
+            self.model.to(self.device)
             self.current_model_key = model_key
-            logging.info(f"Model {model_key} loaded successfully")
             
         except Exception as e:
             logging.error(f"Error loading model: {str(e)}")
             raise
 
-    def apply_lora(self, lora_key: str = "none") -> None:
-        """Apply LoRA if available"""
+    def get_supported_loras(self, model_key: str) -> List[str]:
+        model_info = self.available_models.get(model_key)
+        if not model_info:
+            return []
+        return model_info["supported_loras"]
+
+    def generate_images(self, prompts: List[str], negative_prompts: List[str], config: Dict) -> List[str]:
         try:
+            image_paths = []
+            for prompt, negative_prompt in zip(prompts, negative_prompts):
+                seed = int(config.get("seed")) if config.get("seed") is not None else None
+                generator = None
+                if seed is not None:
+                    generator = torch.Generator(device=self.device)
+                    generator.manual_seed(seed)
+                
+                image = self.model(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    width=config.get("width", 512),
+                    height=config.get("height", 512),
+                    num_inference_steps=int(config.get("num_inference_steps", 20)),
+                    guidance_scale=float(config.get("guidance_scale", 7.5)),
+                    generator=generator
+                ).images[0]
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"img_{timestamp}.png"
+                path = os.path.join("static", "generated_image", filename)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                image.save(path)
+                image_paths.append(path)
+                
+                if self.device.type == "cuda":
+                    torch.cuda.empty_cache()
+                    
+            return image_paths
+                
+        except Exception as e:
+            logging.error(f"Error generating images: {str(e)}")
+            raise
+
+    def apply_lora(self, lora_key: str = "none") -> None:
+        try:
+            if not self._check_lora_compatibility():
+                raise ValueError("Current model doesn't support LoRA")
+            
+            self._cleanup_existing_lora()
+            
             if lora_key == "none":
                 return
-                
-            lora_path = self.available_loras.get(lora_key)
-            if not lora_path:
-                raise ValueError(f"Unknown LoRA: {lora_key}")
             
-            logging.info(f"Applying LoRA: {lora_key}")
+            lora_path = self._validate_lora_path(lora_key)
+            self._load_lora_weights(lora_path)
 
-            if os.path.exists(lora_path):
-                self.model.load_lora_weights(lora_path)
-                if hasattr(self.model, 'fuse_lora'):
-                    self.model.fuse_lora()
-                logging.info("LoRA applied and fused successfully")
-            else:
-                raise FileNotFoundError(f"LoRA file not found: {lora_path}")
+            if self._can_fuse_lora():
+                self._fuse_lora_weights()
             
         except Exception as e:
-            logging.error(f"Error applying LoRA: {str(e)}")
-            raise
+            self._handle_lora_error(e)
+        
+    def _check_lora_compatibility(self):
+        return hasattr(self.model, 'load_lora_weights')
+    
+    def _cleanup_existing_lora(self):
+        if hasattr(self.model, 'unload_lora_weights'):
+            self.model.unload_lora_weights()
 
-    def generate_images(
-        self,
-        prompts: List[str],
-        negative_prompts: List[str] = None,
-        config: Optional[Dict] = None
-    ) -> List[str]:
-        """Generate images with progress indication"""
-        try:
-            logging.info(f"Starting image generation with device: {self.device}")
-            logging.info(f"Prompts: {prompts}")
-            logging.info(f"Config: {config}")
-            
-            if self.model is None:
-                self.load_model()
-            
-            generation_config = self.default_config.copy()
-            if config:
-                generation_config.update(config)
-            
-            image_paths = []
-            
-            # Progress bar for all images
-            with tqdm(total=len(prompts), desc="Generating images") as pbar:
-                for i, prompt in enumerate(prompts):
-                    logging.info(f"Starting generation for prompt {i+1}: {prompt}")
-                    try:
-                        self._rate_limit_check()
-                        
-                        if generation_config["seed"] is not None:
-                            torch.manual_seed(generation_config["seed"] + i)
-                        
-                        negative_prompt = negative_prompts[i] if negative_prompts else None
-                        
-                        logging.info(f"Generating image {i+1}/{len(prompts)} with prompt: {prompt}")
-                        
-                        try:
-                            image = self.model(
-                                prompt,
-                                negative_prompt=negative_prompt,
-                                width=generation_config["width"],
-                                height=generation_config["height"],
-                                num_inference_steps=generation_config["num_inference_steps"],
-                                guidance_scale=generation_config["guidance_scale"]
-                            ).images[0]
-                        except Exception as e:
-                            logging.error(f"Error during model inference: {str(e)}")
-                            raise
-                        
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                        image_path = self.output_dir / f"image_{timestamp}_{i}.png"
-                        
-                        try:
-                            image.save(image_path)
-                        except Exception as e:
-                            logging.error(f"Error saving image: {str(e)}")
-                            raise
-                            
-                        image_paths.append(str(image_path))
-                        pbar.update(1)
-                        logging.info(f"Generated image saved to: {image_path}")
-                        logging.info(f"Completed generation for prompt {i+1}")
-                        
-                    except Exception as e:
-                        logging.error(f"Error generating image {i+1}: {str(e)}")
-                        raise
-            
-            return image_paths
-            
-        except Exception as e:
-            logging.error(f"Error in generate_images: {str(e)}")
-            logging.error(f"Error type: {type(e)}")
-            import traceback
-            logging.error(f"Traceback: {traceback.format_exc()}")
-            raise
+    def _validate_lora_path(self,lora_key:str)->str:
+        lora_configs=self.config_manager.get_lora_config()
+        if not lora_configs:
+            raise ValueError(f"LoRA key '{lora_key}' not found in config.json")
+        
+        lora_relative_path=lora_configs.get("path")
+        if not lora_relative_path:
+            raise ValueError(f"No path configured for LoRA key '{lora_key}' in config.json")
+        
+        lora_path=os.path.join("LoRA",lora_relative_path)
 
-    def get_available_configs(self) -> Dict:
+        if not os.path.exists(lora_path):
+            raise FileNotFoundError(f"LoRA file not found at path:{lora_path}")
+        return lora_path
 
-        return {
-            "models": list(self.available_models.keys()),
-            "loras": list(self.available_loras.keys()),
-            "parameters": {
-                "width": {
-                    "type": "int",
-                    "min": 256,
-                    "max": 1024,
-                    "step": 64,
-                    "default": self.default_config["width"]
-                },
-                "height": {
-                    "type": "int",
-                    "min": 256,
-                    "max": 1024,
-                    "step": 64,
-                    "default": self.default_config["height"]
-                },
-                "num_inference_steps": {
-                    "type": "int",
-                    "min": 20,
-                    "max": 100,
-                    "step": 1,
-                    "default": self.default_config["num_inference_steps"]
-                },
-                "guidance_scale": {
-                    "type": "float",
-                    "min": 1.0,
-                    "max": 20.0,
-                    "step": 0.5,
-                    "default": self.default_config["guidance_scale"]
-                },
-                "seed": {
-                    "type": "int",
-                    "min": -1,
-                    "max": 2147483647,
-                    "default": self.default_config["seed"]
-                }
-            }
-        }
+    def _handle_lora_error(self, error: Exception):
+        logging.error(f"LoRA error: {str(error)}")
+        if isinstance(error, (ValueError, FileNotFoundError)):
+            raise error
+        raise ValueError(f"Failed to apply LoRA: {str(error)}")
+
+    # def get_available_configs(self) -> Dict:
+    #     return {
+    #         "models": list(self.available_models.keys()),
+    #         "parameters": {
+    #             "width": {
+    #                 "type": "int", "min": 256,"max": 1024, "step": 64,
+    #                 "default": 512
+    #             },
+    #             "height": {
+    #                 "type": "int","min": 256,"max": 1024,"step": 64,
+    #                 "default": 512
+    #             },
+    #             "num_inference_steps": {
+    #                 "type": "int", "min": 20, "max": 100,"step": 5,
+    #                 "default": 20
+    #             },
+    #             "guidance_scale": {
+    #                 "type": "float", "min": 1.0, "max": 20.0,"step": 0.5,
+    #                 "default": 7.5
+    #             },
+    #             "seed":{
+    #                 "type":"int","min": -1, "max": 2147483647,"step": 1,
+    #                 "default":-1
+    #             }
+    #         }
+    #     }
 
     def to(self, device):
-        self.device = device
-        if self.model:
-            self.model.to(device) 
+        try:
+            logging.info(f"Switching to device: {device}")
+            self.device = device
+            
+            if self.model:
+                self.model.to(device)                    
+            return True
+        except Exception as e:
+            logging.error(f"Error switching device: {str(e)}")
+            raise
