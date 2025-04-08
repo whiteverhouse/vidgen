@@ -45,7 +45,7 @@ def generate_outline(prompt: str) -> Dict[str, Any]:
         # rate limiting by forcing a 1 sec delay between requests
         time.sleep(1)          
         system_prompt = """
-        You are a professional video story board planner. Generate exactly 3 scenes for the video in english. You must follow below JSON format:
+        You are a professional English video story board planner. Generate scenes for the video in English. You must follow below JSON format:
         {
             "outline": {
                 "title": "Video Title",
@@ -55,16 +55,17 @@ def generate_outline(prompt: str) -> Dict[str, Any]:
                         "description": "Scene description",
                         "image_prompt": str,
                         "negative_prompt":str,
+                        “video_prompt":str,
                         "narration":str
                     }
                 ]
             }
         }
         
-        Make sure each scene must have scene_number, description,simple and engaging narration, good image_prompt and negative_prompt. 
-        The image_prompt should be detailed, high-quality, creative, and aesthetic image generation prompt that tells a story with different camera angles and perspectives. 
+        Make sure each scene must have scene_number, description,simple and engaging narration, good image_prompt and negative_prompt for image generation,and “video_prompt for video generation prompt. 
+        The prompts should be detailed, high-quality, creative, and aesthetic image generation prompt that tells a story with different camera angles and perspectives. 
         The negative_prompt is to rule out deformed body, NSFW or inappropriate content, low quality, blurry, unclear images, watermarks.
-        Each prompt should only be made of 77 tokens.
+        Each prompt should only be made of 77 tokens to accomadate the input limit of stable diffusion pipeline.
         """
         
         completion = client.chat.completions.create(
@@ -96,12 +97,12 @@ def generate_outline(prompt: str) -> Dict[str, Any]:
         else:
             return {"error": "An unexpected error occurred."}
 
-def extract_image_prompts(outline: Dict[str, Any]) -> List[str]:
-    try:
-        image_prompts = []
-        for scene in outline["outline"]["scenes"]:
-            image_prompts.append(scene["image_prompt"])
-        return image_prompts
-    except Exception as e:
-        logging.error(f"Error extracting image prompts: {str(e)}")
-        raise Exception(f"Something went wrong when extracting image prompts: {str(e)}")
+"""please generate a video for the chinese poetry:
+静夜思·李白
+床前明月光，疑是地上霜。
+举头望明月，低头思故乡。
+Translation:Night Thoughts·Li Bai
+The bright moon shines before my bed:
+I wonder if it’s frost on the ground spread.
+At the bright moon I look up,
+And yearn for my old home as I lower my head."""
