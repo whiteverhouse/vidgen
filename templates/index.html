@@ -1,91 +1,897 @@
 <html>
-    <head>
-        <title>VidGen</title>
-        <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0>
-        <style>
-    		.div{
-    			margin: 25px 50px 75px 100px auto;
-    		}
-    	
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-                color: #2D336B;
-                background-color:#FFF2F2;
-            }
-            .input-section{
-            	color: #B82132;
-                margin: 0 auto;
-                border-style: dotted;
-     			border-color: #7886C7;
-                padding: 20px;
-            }
-            .result-section {
-                margin: 20px 0;
-                border-style: dotted;
-                padding:5px;
-    		   color: #B82132;
-    		}
-    		textarea {
-            	height: 100px;
-    		   width: 84%;
-    		   padding: 12px 18px;
-                border: solid;
-    		   border-color: #ccc;
-     		color:#D2665A;
-    		   background-color: #f8f8f8;
-    		   font-size: 14px;
-    		   resize: none;
-            }
-            button{
-                background-color: #D2665A;
-                border:none;
-                color: white;
-                text-align: center;
-                margin-left: 70%;
-                margin-top: 10px;
-                font-size: 14px;
-                display: inline-block;
-                cursor: pointer;
-                text-decoration: none;
-                padding: 15px 20px;
-                
-            }
-        </style>
+<head>
+    <title>VideoGen</title>
+    <meta charset="UTF-8" name="viewport" content="width=device-width" initial-scale=1.0>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #2D336B;
+            background-color:#FFF2F2;
+        }
+        .input-section{
+        	color: #B82132;
+            margin: 0 auto;
+            border-style: dotted;
+ 			border-color: #7886C7;
+            padding: 20px;
+        }
+        .result-section {
+            margin: 20px 0;
+            border-style: dotted;
+            padding:5px;
+			color: #B82132;
+        }
+        .error {
+            color: red;
+        }
+		textarea {
+        	height: 100px;
+			width: 84%;
+			padding: 12px 18px;
+            border: solid;
+			border-color: #ccc;
+ 			color:#D2665A;
+			background-color: #f8f8f8;
+			font-size: 14px;
+			resize: none;
+        }
+        button{
+            background-color: #D2665A;
+            border:none;
+            color: white;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            display: inline-block;
+            cursor: pointer;
+            text-decoration: none;
+            padding: 15px 20px;
+            
+        }
+        .config-panel {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .config-group {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .image-container {
+            position: relative;
+        }
+        
+        .image-container img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        
+        .regenerate-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
 
-    </head>
-    
-    <body>
-        	<div class="container">
-	        <h1>LLM ➡️Stable Diffusion🎨➡️ SVD📹</h1>
-            <!-- User input-->
-            	<div class="input-section">
-            	<h2>1️⃣ What kind of video are we making today?</h2>
-            	<textarea id="prompt"></textarea>
-            	<br>
-            	<button onclick="generateOutline()"> Generate Outline</button>
-            	</div>
-            	
-            <!-- Generated content display-->
-            	<div class="result-section" id="outlineSection">
-            	            <h2>2️⃣Confirm the outline for your video!</h2>
-            	            <div id="outlineResult"></div>
-            	            <button onclick="generateImages()">Generate Image</button>
-            	        </div>
-            	
-            <!-- Generated image display -->
-            	<div class="result-section" id="imageSection">
-            	            <h2>3️⃣Get a load of your image!</h2>
-            	            <div id="imageResult"></div>
-            	            <button onclick="generateVideo()">Generate video</button>
-            	        </div>
-            	
-            <!-- Generated video display -->
-            		<div class="result-section" id="videoSection">
-            	            <h2>4️⃣Review your video!</h2>
-            	            <div id="videoResult"></div>
-            	        </div>
+        #progressIndicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background: #eee;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-bar::after {
+            content: '';
+            display: block;
+            width: 40%;
+            height: 100%;
+            background: #4CAF50;
+            animation: progress 1s infinite linear;
+        }
+        @keyframes progress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(250%); }
+        }
+
+        .error-message {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .scene {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #7886C7;
+        }
+
+        .parameter-panel {
+            background-color: #f8f8f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .parameter-group {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .parameter-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            min-width: 100px;
+        }
+        
+        .parameter-slider {
+            flex: 1;
+            height: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .parameter-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .parameter-input {
+            width: 120px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .parameter-button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        .parameter-button:hover {
+            background-color: #45a049;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .video-container {
+            margin: 15px 0;
+            position: relative;
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .video-container video {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 5px;
+        }
+
+        .regenerate-video-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <h1>🎬VideoGen</h1>
+
+        <!-- Outline generation section -->
+            <!-- User input section-->
+            <div class="input-section">
+                <h2>1️⃣ What kind of video are we making today✒️?</h2>
+                <textarea id="prompt" rows="10" cols="70%"></textarea>
+                <br>
+                <button onclick="generateOutline()"> Generate Outline</button>
+            </div>
+
+            <!-- Outline display section-->
+            <div class="result-section" id="outlineSection">
+                <h2>2️⃣Confirm the outline for your video🗒️!</h2>
+                <div id="outlineResult"></div>
+            </div>
+
+        <!-- Image generation section -->
+        <div class="result-section" id="imageSection">
+            <h2>3️⃣Get a load of your image🎨!</h2>
+            
+            <!--Config panel -->
+            <div class="config-panel">
+                <h3>Image Generation Settings</h3>
+                <div class="config-group">
+                    <label for="model-select">Model:</label>
+                    <select id="model-select"></select>
+                    
+                    <label for="lora-select">LoRA:</label>
+                    <select id="lora-select">
+                        <option value="none">None</option>
+                    </select>
                 </div>
-    </body>
-</html>
+                
+                <div class="parameter-panel">
+                    <h3>Image Generation parameter panel</h3>
+                    <div class="parameter-group">
+                        <label for="width">Width:</label>
+                        <select id="width" class="parameter-select"></select>
+                        
+                        <label for="height">Height:</label>
+                        <select id="height" class="parameter-select"></select>
+                    </div>
+
+                    <div class="parameter-group">
+                        <label for="num_inference_steps">Inference step(more fine details if higher):</label>
+                        <input type="range" id="num_inference_steps" class="parameter-slider">
+                        <span id="num_inference_steps_value">30</span>
+                    </div>
+
+                    <div class="parameter-group">
+                        <label for="guidance_scale">Guidance(how closely would the generation follow the prompt):</label>
+                        <input type="range" id="guidance_scale" class="parameter-slider">
+                        <span id="guidance_scale_value">7.5</span>
+                    </div>
+
+                    <div class="parameter-group">
+                        <label for="seed">Seed:</label>
+                        <input type="number" id="seed" class="parameter-input">
+                        <button onclick="randomizeSeed()" class="parameter-button">Random seed</button>
+                    </div>
+                </div>
+
+                <div class="config-group" style="margin-top: 20px;">
+                    <button onclick="generateImages()">Generate Images</button>
+                    <button onclick="generateImagesReplicate()">Generate with replicate</button>
+                </div>
+            </div>
+            
+            <div id="imageResult" class="image-grid"></div>
+        </div>
+
+        <!-- Video generation section -->
+        <div class="result-section" id="videoSection">
+            <h2>4️⃣ Generate your video now📹!</h2>
+            <!-- Video generation panel -->
+            <div class="parameter-panel">
+                <h3>Video Generation Settings</h3>
+                <div class="parameter-group">
+                    <label for="num_frames">Number of Frames:</label>
+                    <input type="range" id="num_frames" class="parameter-slider">
+                    <span id="num_frames_value">24</span>
+                </div>
+
+                <div class="parameter-group">
+                    <label for="fps">FPS:</label>
+                    <input type="range" id="fps" class="parameter-slider">
+                    <span id="fps_value">8</span>
+                </div>
+
+                <div class="parameter-group">
+                    <label for="video_inference_steps">Inference Steps:</label>
+                    <input type="range" id="video_inference_steps" class="parameter-slider">
+                    <span id="video_inference_steps_value">30</span>
+                </div>
+
+                <div class="parameter-group">
+                    <label for="motion_bucket">Motion Intensity:</label>
+                    <input type="range" id="motion_bucket" class="parameter-slider">
+                    <span id="motion_bucket_value">127</span>
+                </div>
+
+                <div class="parameter-group">
+                    <label for="vid_guidance_scale">Guidance scale:</label>
+                    <input type="range" id="vid_guidance_scale" class="parameter-slider">
+                    <span id="vid_guidance_scale_value">30</span>
+                </div>
+
+                <div class="parameter-group">
+                    <label for="vid_seed">Seeds:</label>
+                    <input type="range" id="vid_seed" class="parameter-slider">
+                    <span id="vid_seed_value">30</span>
+                </div>
+            </div>
+            
+            <div class="config-group" style="margin-top: 20px;">
+                <button onclick="generateVideo()">Generate Video</button>
+                <button onclick="generateVideoReplicate()">Generate video with replicate</button>
+            </div>
+            
+            <!-- Video display section -->
+            <div id="videoResult" class="video-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        let imagePrompts = [];
+        let negativePrompts = [];
+        let videoPrompts=[];
+        async function generateOutline() {
+            try {
+                const prompt = document.getElementById('prompt').value;
+                // basic check, backend handles the rest of validation of input as it ensures the data integrity being sent to the server
+                if (!prompt.trim()) {
+                    alert('Please enter a prompt');
+                    return;
+                }
+
+                showProgress("Generating outline..."); 
+
+                const response = await fetch('/generate_outline', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({prompt: prompt})
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.outline || !data.outline.scenes || !Array.isArray(data.outline.scenes)) {
+                    throw new Error('Invalid response format from server');
+                }
+                const outline = data.outline;
+                let htmlContent = `<h3>${outline.title || 'Generated Outline'}</h3>`;
+                
+                outline.scenes.forEach((scene, index) => {
+                    htmlContent += `
+                        <div class="scene">
+                            <h4>Scene ${scene.scene_number || (index + 1)}</h4>
+                            ${scene.description ? `<p><strong>Description:</strong> ${scene.description}</p>` : ''}
+                            <p><strong>Image Prompt:</strong> ${scene.image_prompt}</p>
+                            ${scene.negative_prompt ? `<p><strong>Negative Prompt:</strong> ${scene.negative_prompt}</p>` : ''}
+                            ${scene.video_prompt ? `<p><strong>Prompt for video generation:</strong> ${scene.video_prompt}</p>` : ''}
+                            ${scene.narration ? `<p><strong>Narration:</strong> ${scene.narration}</p>` : ''}
+                        </div>
+                    `;
+                    if (scene.image_prompt) {
+                        imagePrompts.push(scene.image_prompt);
+                        negativePrompts.push(scene.negative_prompt|| '');
+                        videoPrompts.push(scene.video_prompt||'');
+                    }
+                });
+                
+                const outlineResult = document.getElementById('outlineResult');
+                outlineResult.innerHTML = htmlContent;
+
+                document.getElementById('outlineSection').style.display = 'block';
+                document.getElementById('imageSection').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error details:', error);
+                alert('Error generating outline: ' + error.message);
+            } finally {
+                hideProgress();  
+            }
+        }
+
+
+
+        const configManager = {
+            configs: null,
+            
+            async initialize() {
+                try {
+                    const response = await fetch('/get_configs');
+                    this.configs = await response.json();
+                    this.setupModelSelects();
+                    this.setupImageParameters();
+                    this.setupVideoParameters();
+                } catch (error) {
+                    console.error('Error initializing configs:', error);
+                }
+            },
+            
+            setupModelSelects() {
+                const modelSelect = document.getElementById('model-select');
+                const loraSelect = document.getElementById('lora-select');
+
+                Object.entries(this.configs.models).forEach(([key, model]) => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = model.name;
+                    modelSelect.appendChild(option);
+                });
+                
+                modelSelect.addEventListener('change', () => {
+                    const selectedModel = this.configs.models[modelSelect.value];
+                    loraSelect.innerHTML = '<option value="none">None</option>';
+                    
+                    if (selectedModel.supported_loras) {
+                        selectedModel.supported_loras.forEach(lora => {
+                            const option = document.createElement('option');
+                            option.value = lora;
+                            option.textContent = lora;
+                            loraSelect.appendChild(option);
+                        });
+                    }
+                });
+            },
+            
+            setupImageParameters() {
+                const params = this.configs.image_parameters;
+
+                ['width', 'height'].forEach(dim => {
+                    // find id name width and height and populate
+                    const select = document.getElementById(dim);
+                    const config = params[dim];
+                    // for-loop for making a selector range from 256 to 1024 with increment of 64
+                    for (let value = config.min; value <= config.max; value += config.step) {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = value;
+                        option.selected = value === config.default;
+                        select.appendChild(option);
+                    }
+                });
+                // find html id name that match with the json object name and populate
+                ['num_inference_steps', 'guidance_scale'].forEach(param => {
+                    const slider = document.getElementById(param);
+                    const config = params[param];
+                    
+                    slider.min = config.min;
+                    slider.max = config.max;
+                    slider.step = config.step;
+                    slider.value = config.default;
+                    
+                    this.updateSliderValue(param);
+                    slider.addEventListener('input', () => {
+                        this.updateSliderValue(param);
+                    });
+                });
+            },
+            
+            setupVideoParameters() {
+                const params = this.configs.video_parameters;
+                
+                Object.entries(params).forEach(([param, config]) => {
+                    const slider = document.getElementById(param);
+                    if (slider) {
+                        slider.min = config.min;
+                        slider.max = config.max;
+                        slider.step = config.step;
+                        slider.value = config.default;
+                        
+                        this.updateSliderValue(param);
+                        slider.addEventListener('input', () => {
+                            this.updateSliderValue(param);
+                        });
+                    }
+                });
+            },
+            
+            updateSliderValue(sliderId) {
+                const slider = document.getElementById(sliderId);
+                const valueSpan = document.getElementById(`${sliderId}_value`);
+                if (valueSpan) {
+                    valueSpan.textContent = slider.value;
+                }
+            },
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            configManager.initialize();
+        });
+        
+        function randomizeSeed() {
+            const seedInput = document.getElementById('seed');
+            seedInput.value = Math.floor(Math.random() * 2147483647);
+            updateCurrentConfig();
+        }
+
+        // async function switchDevice(device) {
+        //     try {
+        //         await fetch('/switch_device', {
+        //             method: 'POST',
+        //             headers: {'Content-Type': 'application/json'},
+        //             body: JSON.stringify({device: device})
+        //         });
+        //         alert(`Switched to ${device}`);
+        //     } catch (error) {
+        //         alert('Error switching device');
+        //     }
+        // }
+
+        async function generateImages() {
+            try {
+                const outlineContent = document.getElementById('outlineResult').innerHTML;
+                if (!outlineContent) {
+                    alert('No outline!');
+                    return;
+                }
+                //just to let user know that the generation is operating, does not reflect real time progress
+                showProgress("Generating images now...");
+
+                const config = {
+                    width: parseInt(document.getElementById('width').value),
+                    height: parseInt(document.getElementById('height').value),
+                    num_inference_steps: parseInt(document.getElementById('num_inference_steps').value),
+                    guidance_scale: parseFloat(document.getElementById('guidance_scale').value),
+                    seed: parseInt(document.getElementById('seed').value)
+                };
+
+                const model = document.getElementById('model-select').value;
+                const lora = document.getElementById('lora-select').value;
+                const response = await fetch('/generate_images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompts: imagePrompts,
+                        negativePrompts: negativePrompts,
+                        config: config,
+                        model: model,
+                        lora: lora
+                    })
+                });
+                //after all images are produced, image paths are returned
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displayImages(data.image_paths);
+                document.getElementById('videoSection').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error generating images:', error);
+                alert(`Error generating images: ${error.message}`);
+            } finally {
+                hideProgress();
+            }
+        }
+
+        function displayImages(imagePaths) {
+            const imageResult = document.getElementById('imageResult');
+            //clear previous image if there's one
+            imageResult.innerHTML = '';
+            
+            //display images in grid
+            imagePaths.forEach((path, index) => {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                
+                const img = document.createElement('img');
+                img.src = path;
+                img.alt = `Generated image ${index + 1}`;
+                
+                //regenerate button if user wants to redo a prompt
+                const regenerateBtn = document.createElement('button');
+                regenerateBtn.className = 'regenerate-btn';
+                regenerateBtn.textContent = '🔄';
+                regenerateBtn.onclick = function(){
+                    regenerateImage(index);   
+                }
+                
+                container.appendChild(img);
+                container.appendChild(regenerateBtn);
+                imageResult.appendChild(container);
+            });
+        }
+
+        async function regenerateImage(index) {
+            try {
+                const config = {
+                    width: parseInt(document.getElementById('width').value),
+                    height: parseInt(document.getElementById('height').value),
+                    num_inference_steps: parseInt(document.getElementById('num_inference_steps').value),
+                    guidance_scale: parseFloat(document.getElementById('guidance_scale').value),
+                    seed: parseInt(document.getElementById('seed').value)
+                };
+                const response = await fetch('/regenerate_image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: imagePrompts[index],
+                        negative_prompt: negativePrompts[index],
+                        config: config,
+                        image_index: index,
+                        model: document.getElementById('model-select').value,
+                        lora: document.getElementById('lora-select').value
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // update the corresponding image grid when image path is returned
+                const images = document.getElementById('imageResult').getElementsByTagName('img');
+                images[data.image_index].src = data.image_path;
+                
+            } catch (error) {
+                console.error('Error regenerating image:', error);
+                alert('Error regenerating image: ' + error.message);
+            }
+        }
+
+
+
+        async function generateVideo() {
+            try {
+                const images = document.querySelectorAll('#imageResult img');
+                const imagePaths = Array.from(images).map(img => img.src);
+                
+                if (imagePaths.length === 0) {
+                    alert('Need to generate images first！');
+                    return;
+                }
+                
+                showProgress("Video generating...could BE a WHILE");
+                
+                const videoConfig = {
+                    num_frames: parseInt(document.getElementById('num_frames').value),
+                    fps: parseInt(document.getElementById('fps').value),
+                    num_inference_steps: parseInt(document.getElementById('video_inference_steps').value),
+                    motion_bucket_id: parseInt(document.getElementById('motion_bucket').value),
+                    vid_guidance_scale: parseInt(document.getElementById('vid_guidance_scale').value),                    
+                    vid_seed: parseInt(document.getElementById('vid_seed').value)
+                };
+                
+                const response = await fetch('/generate_video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image_paths: imagePaths,
+                        config: videoConfig
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displayVideos(data.video_paths, videoConfig);
+                
+            } catch (error) {
+                console.error('Failed video generation:', error);
+                alert('Failed video generation: ' + error.message);
+            } finally {
+                hideProgress();
+            }
+        }
+
+        function displayVideos(videoPaths, config) {
+            const videoResult = document.getElementById('videoResult');
+            videoResult.innerHTML = '';
+            
+            videoPaths.forEach((path, index) => {
+                const container = document.createElement('div');
+                container.className = 'video-container';
+                
+                const video = document.createElement('video');
+                video.src = path;
+                video.controls = true;
+                video.autoplay = false;
+                
+                const regenerateBtn = document.createElement('button');
+                regenerateBtn.className = 'regenerate-video-btn';
+                regenerateBtn.textContent = '🔄';
+                regenerateBtn.onclick = () => regenerateVideo(index, config);
+                
+                container.appendChild(video);
+                container.appendChild(regenerateBtn);
+                videoResult.appendChild(container);
+            });
+        }
+
+        async function regenerateVideo(index, config) {
+            try {
+                const images = document.querySelectorAll('#imageResult img');
+                const imagePath = images[index].src;
+                
+                showProgress("Regenerating a video...");
+                
+                const response = await fetch('/generate_video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image_paths: [imagePath],
+                        config: config,
+                        video_index: index
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const videos = document.querySelectorAll('#videoResult video');
+                videos[data.video_index].src = data.video_paths[0];
+                
+            } catch (error) {
+                console.error('Failed video regeneration:', error);
+                alert('Failed video regeneration: ' + error.message);
+            } finally {
+                hideProgress();
+            }
+        }
+
+        function showProgress(message) {
+            const progressDiv = document.createElement('div');
+            progressDiv.id = 'progressIndicator';
+            progressDiv.innerHTML = `
+                <div class="progress-message">${message}</div>
+                <div class="progress-bar"></div>
+            `;
+            document.body.appendChild(progressDiv);
+        }
+
+        function hideProgress() {
+            if (document.getElementById('progressIndicator')) {
+                document.getElementById('progressIndicator').remove();
+            }
+        }
+
+        async function generateImagesReplicate() {
+            try {
+                const outlineContent = document.getElementById('outlineResult').innerHTML;
+                if (!outlineContent) {
+                    alert('No outline!');
+                    return;
+                }
+
+                showProgress("Generating images with Replicate API...");
+
+                const config = {
+                    width: parseInt(document.getElementById('width').value),
+                    height: parseInt(document.getElementById('height').value),
+                    num_inference_steps: parseInt(document.getElementById('num_inference_steps').value),
+                    guidance_scale: parseFloat(document.getElementById('guidance_scale').value),
+                    seed: parseInt(document.getElementById('seed').value)
+                };
+
+                const response = await fetch('/generate_images_replicate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompts: imagePrompts,
+                        negativePrompts: negativePrompts,
+                        config: config
+                    })
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                displayImages(data.image_paths);
+                document.getElementById('videoSection').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error generating images with SDXL:', error);
+                alert(`Error generating images: ${error.message}`);
+            } finally {
+                hideProgress();
+            }
+        }
+
+        async function generateVideoReplicate() {
+            try {
+                const images = document.querySelectorAll('#imageResult img');
+                const imagePaths = Array.from(images).map(img => img.src);
+
+                console.log(imagePaths);
+                
+                if (imagePaths.length === 0) {
+                    alert('Please generate images first!');
+                    return;
+                }
+                
+                showProgress("Generating video with Kling model...");
+                
+                const videoConfig = {
+                    num_frames: parseInt(document.getElementById('num_frames').value),
+                    num_inference_steps: parseInt(document.getElementById('video_inference_steps').value),
+                    fps: parseInt(document.getElementById('fps').value),
+                    motion_bucket_id: parseInt(document.getElementById('motion_bucket').value)
+                    // ,cfg_scale: parseInt(document.getElementById('vid_guidance_scale').value),
+                    // vid_seed: parseInt(document.getElementById('vid_seed').value)
+                };
+                
+                const response = await fetch('/generate_video_replicate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image_paths: imagePaths,
+                        videoPrompts: videoPrompts,
+                        config: videoConfig
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displayVideos(data.video_paths, videoConfig);
+                
+            } catch (error) {
+                console.error('Error generating video with Kling pro:', error);
+                alert('Error generating video: ' + error.message);
+            } finally {
+                hideProgress();
+            }
+        }
+    </script>
+</body>
+</html> 
