@@ -50,11 +50,11 @@ class VideoGenerator:
             # Convert and validate configuration parameters
             num_frames = int(config.get("num_frames", 16))
             fps = int(config.get("fps", 8))
-            video_inference_steps = int(config.get("video_inference_steps", 25))
+            # video_inference_steps = int(config.get("video_inference_steps", 25))
             motion_bucket_id = int(config.get("motion_bucket", 127))
-            vid_guidance_scale = float(config.get("vid_guidance_scale", 1.0))
+            # vid_guidance_scale = float(config.get("vid_guidance_scale", 1.0))
             vid_seed = int(config.get("vid_seed")) if config.get("vid_seed") is not None else None
-            
+            generator = torch.manual_seed(vid_seed)
             with tqdm(total=len(image_paths), desc="Generating videos") as pbar:
                 for i, img_path in enumerate(image_paths):
                     img = Image.open(img_path).convert("RGB")
@@ -63,10 +63,8 @@ class VideoGenerator:
                         img,
                         num_frames=num_frames,
                         fps=fps,
-                        video_inference_steps=video_inference_steps,
                         motion_bucket_id=motion_bucket_id,
-                        guidance_scale=vid_guidance_scale,
-                        seed=vid_seed
+                        generator=generator
                     ).frames[0]
                     
                     video_path = self.output_dir / f"video_{timestamp}_{i}.mp4"
