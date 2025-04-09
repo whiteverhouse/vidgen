@@ -678,8 +678,12 @@
         async function generateVideo() {
             try {
                 const images = document.querySelectorAll('#imageResult img');
-                const imagePaths = Array.from(images).map(img => img.src);
-                
+                // const imagePaths = Array.from(images).map(img => img.src);
+                const imagePaths = Array.from(images).map(img => {
+                    const fullPath = img.src;
+                    const staticIndex = fullPath.indexOf('static/');
+                    return staticIndex !== -1 ? fullPath.substring(staticIndex) : '';
+                });
                 if (imagePaths.length === 0) {
                     alert('Need to generate images first！');
                     return;
@@ -846,8 +850,12 @@
         async function generateVideoReplicate() {
             try {
                 const images = document.querySelectorAll('#imageResult img');
-                const imagePaths = Array.from(images).map(img => img.src);
-
+                // const imagePaths = Array.from(images).map(img => img.src);
+		const imagePaths = Array.from(images).map(img => {
+                    const fullPath = img.src;
+                    const staticIndex = fullPath.indexOf('static/');
+                    return staticIndex !== -1 ? fullPath.substring(staticIndex) : '';
+                });
                 console.log(imagePaths);
                 
                 if (imagePaths.length === 0) {
